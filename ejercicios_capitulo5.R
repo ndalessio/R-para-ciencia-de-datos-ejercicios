@@ -1,5 +1,5 @@
-library(tidyverse)
-library(datos)
+##library(tidyverse)
+##library(datos)
 
 ##5.2 Encuentra los vuelos que:
 ##1. Tuvieron un retraso de llegada de dos o más horas
@@ -12,7 +12,9 @@ filter(vuelos, destino %in% c("IAH", "HOU"))
 filter(vuelos, aerolinea %in% c("UA", "AA","DL"))
 
 ##4. Partieron en invierno (julio, agosto y septiembre)
-filter(vuelos, mes %in% c(7, 8, 9))
+# filter(vuelos, mes %in% c(7, 8, 9))
+
+## filter(vuelos, mes %in% 7:9)
 
 ##5. Llegaron más de dos horas tarde, pero no salieron tarde
 filter(vuelos, atraso_salida > 120 & atraso_llegada <= 0)
@@ -21,7 +23,13 @@ filter(vuelos, atraso_salida > 120 & atraso_llegada <= 0)
 filter(vuelos, atraso_salida >= 60, atraso_salida - atraso_llegada > 30)
 
 ##7. Partieron entre la medianoche y las 6 a.m. (incluyente)
+
 summary(vuelos$horario_salida)
+
+## El horario de salida de los aviones està representado así 00.20 = 020, 1am = 100, 6am = 600, 
+## 5pm = 1700, +++ 00.00 = 2400. 
+## Por lo tanto, no podemos hacer simplemente dep_time < 600. 
+
 filter(vuelos, horario_salida  <= 600 | horario_salida == 2400)
 
 ##8. Otra función de dplyr que es útil para usar filtros es between(). ¿Qué hace?
@@ -30,7 +38,7 @@ filter(vuelos, between(mes, 7, 9))
 
 ## 9. ¿Cuántos vuelos tienen datos faltantes en horario_salida? ¿Qué otras variables tienen valores faltantes? ¿Qué representan estas filas?
 sum(is.na(vuelos$horario_salida))
-vuelos_NA_salida <- filter(vuelos, is.na(horario_salida))
+vuelos_NA_salida <- filter(vuelos, is.na(horario_salida)) ## fitra y guarda vuelos donde falta valor en horario_salida
 
 ##10. Las variables horario_llegada, atraso_salida, atraso_llegada, codigo_cola, tiempo_vuelo también
 ##tienen datos faltantes. Representan vuelos cancelados. 
@@ -42,9 +50,16 @@ vuelos_NA_salida <- filter(vuelos, is.na(horario_salida))
 ## F | T = T , T | T = T.
 ## c. De manera similar, FALSE & NA, seleccionará aquellos casos que cumplan la condición FALSE. 
 
+                          ######################################################
+
 ## 5.3 Arrange 
 ##1. ¿Cómo podrías usar arrange() para ordenar todos los valores faltantes al comienzo? (Sugerencia: usa is.na()).
-arrange(filter(vuelos, is.na(horario_salida)), horario_salida)
+
+## La función is.na coloca los valores faltantes al final. 
+
+arrange(vuelos, (is.na(horario_salida)), horario_salida)
+
+## desc(is.na(horario_salida)), horario_salida ? 
 
 ##2. Ordena vuelos para encontrar los vuelos más retrasados. Encuentra los vuelos que salieron más temprano.
 arrange(vuelos, atraso_salida) ##vuelos que salieron más temprano
@@ -99,16 +114,35 @@ select(vuelos, contains("SALIDA", ignore.case = FALSE))
 ##formato más conveniente como número de minutos desde la medianoche.
 
 horas_a_minutos <- function (x){
-  x %/% 100 * 60 + x %% 100
+  (x %/% 100 * 60 + x %% 100) %% 1440
 }
 
-mutate(vuelos, 
-       salida_programada = horas_a_minutos(salida_programada),
-       horario_salida = horas_a_minutos(horario_salida))
+horarios_vuelos <- mutate(vuelos, 
+                              salida_programada_minutos = horas_a_minutos(salida_programada),
+                              horario_salida_minutos = horas_a_minutos(horario_salida))
+
+select(horarios_vuelos, salida_programada, salida_programada_minutos, horario_salida, horario_salida_minutos)
 
 ##Compara tiempo_vuelo con horario_llegada - horario_salida. ¿Qué esperas ver? ¿Qué ves? 
+vuelos_tiempo <- mutate(vuelos, 
+                               horario_llegada = (horario_llegada %/% 100 * 60 + horario_llegada %% 100) %% 1440,
+                               horario_salida = (horario_salida %/% 100 * 60 + horario_salida %% 100) %% 1440,
+                               diferencia_tiempo_aire = tiempo_vuelo - horario_llegada - horario_salida
+                               )
+
+select(vuelos_tiempo, horario_llegada, horario_salida, diferencia_tiempo_aire, tiempo_vuelo)
+
 ##¿Qué necesitas hacer para arreglarlo?
+## Completar
 
-select(vuelos1, tiempo_vuelo, horario_llegada - horario_salida)
+##5.5.3 Compara horario_salida, salida_programada, y atraso_salida. ¿Cómo esperarías que esos tres números estén relacionados?
 
-##
+
+delays <- flights %>% 
+  group_by(dest) %>% 
+  summarise(
+    count = n(),
+    dist = mean(distance, na.rm = TRUE), 
+    delay = mean(arr_delay, na.rm = TRUE)
+    ) %>% 
+      filter(count > 20, dest !="HNL")
