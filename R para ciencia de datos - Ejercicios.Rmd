@@ -5,7 +5,7 @@ date: "4/24/2020"
 output: html_document
 ---
 
-```
+```{r}
 library(tidyverse)
 library(datos)
 ```
@@ -126,53 +126,6 @@ No sucede nada, solo se muestra una vez la variable repetida.
 5.4.3 ¿Qué hace la función one_of()? ¿Por qué podría ser útil en conjunto con este vector?
 
 one_of permite seleccionar las variables que combinan con los nombres de cierto vector de caracteres. Puede ser útil almacenar las variables que queremos en n vector, para agregar o quitar en el vector. También es útil utilizar on_of ya que si escribimos mal una variable nos avisaría que esa variable no existe.
-
-5.5.1 Contains 
-```
-select(vuelos, contains("SALIDA"))
-```
-Pensé que contains distinguiría entre mayúsculas y minúsculas. Este comportamiento se puede cambiar con el siguiente comando, el cual trata cada nomre de varible de manera literal. 
-```
-select(vuelos, contains("SALIDA", ignore.case = FALSE))
-```
-5.5.2 Las variables horario_salida y salida_programada tienen un formato conveniente para leer, pero es difícil realizar cualquier cálculo con ellas porque no son realmente nÃºmeros continuos. Transfórmalas hacia un formato más conveniente como número de minutos desde la medianoche.
-```
-horas_a_minutos <- function (x){
-  (x %/% 100 * 60 + x %% 100) %% 1440
-}
-
-horarios_vuelos <- mutate(vuelos, 
-                              salida_programada_minutos = horas_a_minutos(salida_programada),
-                              horario_salida_minutos = horas_a_minutos(horario_salida))
-
-select(horarios_vuelos, salida_programada, salida_programada_minutos, horario_salida, horario_salida_minutos)
-```
-Compara tiempo_vuelo con horario_llegada - horario_salida. ¿Qué esperas ver? ¿Qué ves? 
-```
-vuelos_tiempo <- mutate(vuelos, 
-                               horario_llegada = (horario_llegada %/% 100 * 60 + horario_llegada %% 100) %% 1440,
-                               horario_salida = (horario_salida %/% 100 * 60 + horario_salida %% 100) %% 1440,
-                               diferencia_tiempo_aire = tiempo_vuelo - horario_llegada - horario_salida
-                               )
-
-select(vuelos_tiempo, horario_llegada, horario_salida, diferencia_tiempo_aire, tiempo_vuelo)
-```
-¿Qué necesitas hacer para arreglarlo?
-
-##Completar
-
-5.5.3 Compara horario_salida, salida_programada, y atraso_salida. ¿Cómo esperarías que esos tres números estén relacionados?
-
-```
-delays <- flights %>% 
-  group_by(dest) %>% 
-  summarise(
-    count = n(),
-    dist = mean(distance, na.rm = TRUE), 
-    delay = mean(arr_delay, na.rm = TRUE)
-    ) %>% 
-      filter(count > 20, dest !="HNL")
-```
 
 
 

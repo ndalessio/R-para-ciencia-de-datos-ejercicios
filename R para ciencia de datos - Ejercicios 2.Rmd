@@ -1,0 +1,114 @@
+---
+title: "R para ciencia de datos - Ejercicios 2"
+author: "Noelí D'Alessio"
+date: "4/25/2020"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(datos)
+library(dplyr)
+```
+
+## 5.5 Añadir nuevas variables con mutate()
+
+5.5.1 no hay ejercicios
+
+5.5.2 Ejercicios
+
+1. Las variables horario_salida y salida_programada tienen un formato conveniente para leer, pero es difícil realizar cualquier cálculo con ellas porque no son realmente números continuos. Transfórmalas hacia un formato más conveniente como número de minutos desde la medianoche.
+
+```{r}
+horas_a_minutos <- function (x){
+  (x %/% 100 * 60 + x %% 100) %% 1440
+}
+
+horarios_vuelos <- mutate(vuelos, 
+                              salida_programada_minutos = horas_a_minutos(salida_programada),
+                              horario_salida_minutos = horas_a_minutos(horario_salida))
+
+select(horarios_vuelos, salida_programada, salida_programada_minutos, horario_salida, horario_salida_minutos)
+```
+
+2.Compara tiempo_vuelo con horario_llegada - horario_salida. ¿Qué esperas ver? ¿Qué ves? 
+
+Esperaría que si resto al horario de llegada el horarios de salida, me daría una cantidad en minutos que sería la misma que el tiempo de vuelo:
+
+```{r}
+vuelos_tiempo <- 
+  mutate(vuelos, 
+    horario_llegada = (horario_llegada %/% 100 * 60 + horario_llegada %% 100)%% 1440,
+    horario_salida = (horario_salida %/% 100 * 60 + horario_salida %% 100) %% 1440,
+    diferencia_tiempo_aire = horario_llegada - horario_salida
+                               )
+
+select(vuelos_tiempo, horario_llegada, horario_salida, diferencia_tiempo_aire, tiempo_vuelo)
+```
+Lo que veo es que la diferencia entre horario_llegada - horario_ salida no coincide con tiempo_vuelo.
+También podríamos haber calculado la diferencia así:
+diferencia_tiempo_aire = tiempo_vuelo - horario_llegada + horario_salida. 
+De esta manera, si no da 0 es que no son iguales y podemos saber cuántos vuelos no da 0 esta diferencia:
+
+nrow(filter(vuelos_tiempo, diferencia_tiempo_aire != 0))
+
+-Hay varios motivos por los cuales hay muchos vuelos donde la diferencia entre el tiempo de vuelo y el tiempo de vuelo calculado como horario_llegada-horario_salida no coincide:
+1. Diferencias en los husos horarios. Estas diferencias deberían dar una hora, dos más de diferencia (divisible por 60).
+2.Si llega al día siguiente. Por ejemplo, salió a las 23hs (1380 minutos) y llegó a la 1 (60 minutos), el tiempo de vuelo es de 120 minutos, pero 1380-60 no daría eso. 
+3.En la documentación, señalan que el tiempo_vuelo es considerado desde el momento en que las ruedas del avión dejan de tocar el piso y cuando al aterrizar las tocan del piso. No se considera el tiempo previo y posterior a esto. 
+Por lo cual, beríamos considerar, en realidad que:
+tiempo_vuelo <= horario_llegada - horario_salida
+
+Deberíamos pasar las fechas a otro formato como el UTC.
+
+
+3. Compara horario_salida, salida_programada, y atraso_salida. ¿Cómo esperarías que esos tres números estén relacionados?
+
+Nuevamente, esperaría que atraso_salida - horario_salida + salida_programada sea igual a 0.
+
+```{r}
+retrasos_comparacion<- mutate(vuelos, 
+                     salida_programada = horas_a_minutos(salida_programada),
+                     horario_salida = horas_a_minutos(horario_salida),
+                     diferencia_retraso = atraso_salida - horario_salida + salida_programada)
+
+select(retrasos_comparacion, salida_programada, horario_salida, atraso_salida, diferencia_retraso)
+```
+```{r}
+nrow(filter(retrasos_comparacion, diferencia_retraso != 0))
+```
+
+Hay 1236 vuelos donde el atraso y la diferencia entre horario_salida y horario_programado no coinciden. Esto podría deberse a que se retraso un vuelo para el día siguiente.
+
+```{r}
+ggplot(
+      filter(retrasos_comparacion, diferencia_retraso > 0),
+      aes(y = salida_programada, x = diferencia_retraso)
+) +
+  geom_point()
+```
+4.Encuentra los 10 vuelos más retrasados utilizando una función de ordenamiento. ¿Cómo quieres manejar los empates? Lee atentamente la documentación de min_rank().
+
+```{r}
+vuelos_mas_retrasados <- mutate(vuelos, 
+                                salida_retrasada_ranking = min_rank(desc(atraso_salida)))
+vuelos_mas_retrasados<- filter(vuelos_mas_retrasados, salida_retrasada_ranking <11)
+vuelos_mas_retrasados<- arrange(vuelos_mas_retrasados, salida_retrasada_ranking)
+select(vuelos_mas_retrasados, anio, mes, dia, aerolinea, vuelo, atraso_salida, salida_retrasada_ranking)
+```
+5.¿Qué devuelve 1:3 + 1:10? ¿Por qué?
+```{r}
+1:3 + 1:10
+```
+Al sumar dos vectores, el vector más corto se recicla/repite para tomar el largo del vector más largo.
+Es decir: 1+1, 2+2, 3+3, 1+4, 2+5, 3+6, 1+7, 2+8, 3+9, 1+10 
+
+6.¿Qué funciones trigonométricas proporciona R?
+-
+
+
+
+
+
+
+
+
