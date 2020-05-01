@@ -1,0 +1,180 @@
+---
+title: "R para ciencia de datos - Ejercicios 3"
+author: "Noelí D'Alessio"
+date: "4/29/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(datos)
+```
+
+# Atrasos por destino
+```{r}
+atrasos <- vuelos %>% 
+    group_by(destino) %>% 
+    summarise(
+      conteo = n(),
+      distancia = mean(distancia, na.rm = TRUE),
+      atraso = mean(atraso_llegada, na.rm = TRUE)
+    )%>% 
+    filter(conteo > 20, destino !='HNL')
+
+```
+# 5.6.7 Ejercicios
+
+- data %>%  count(variable) - Cuenta cuántos vuelos se hicieron por destino
+
+```{r}
+not_cancelled <- vuelos %>% 
+    filter(!is.na(atraso_salida), !is.na(atraso_llegada))
+           
+not_cancelled %>% count(destino)
+```
+
+- Tambien podriamos usar group_by(varible) y summarise(n = length(variable))
+```{r}
+not_cancelled %>% 
+  group_by(destino) %>% 
+  summarise(n = length(destino))
+```
+
+- group by + summarise(n = n())
+I
+```{r}
+not_cancelled %>% 
+  group_by(destino) %>% 
+  summarise(n = n())
+```
+
+- group_by + tally()
+
+```{r}
+not_cancelled %>%  
+  group_by(codigo_cola) %>% 
+  tally()
+```
+- count(wt=varible)
+
+```{r}
+not_cancelled %>% 
+  count(codigo_cola, wt = distancia)
+```
+
+- Parecido, pero en vez del argumento wt usamos group_by y summarise
+```{r}
+not_cancelled %>% 
+  group_by(codigo_cola) %>% 
+  summarise(n = sum(distancia))
+```
+
+- Group_by + tally(variable) - el argumento de tally se suma
+```{r}
+not_cancelled %>% 
+  group_by(codigo_cola) %>% 
+  tally(distancia)
+```
+
+4.Mira la cantidad de vuelos cancelados por día. ¿Hay un patrón? ¿La proporción de vuelos cancelados está relacionada con el retraso promedio?
+
+Primero, me gustaría ver si la cantidad de vuelos cancelados aumenta cuando hay más cantidad de vuelos por día, ya que más vuelos debería ser más demora. 
+
+```{r}
+cancelados_por_dia <- 
+  vuelos %>% 
+   mutate(cancelados = (is.na(horario_salida) | is.na(horario_llegada)))%>% 
+  group_by(anio, mes, dia) %>% 
+    summarise(
+      total_cancelados = sum(cancelados),
+      total_vuelos = n(),
+    )
+
+ggplot(cancelados_por_dia) +
+  geom_point(aes(x=total_vuelos, y=total_cancelados))
+```
+
+
+Al parecer, a medida que aumenta la cantidad de vuelos, aumenta tambien el numero de vuelos cancelados. 
+
+Ahora, debemos ver si la cantidad de vuelos cancelados, esta relacionada con la cantidad de vuelos. Al haber mas vuelos, esperariamos mas demora y por ende mas vuelos cancelados.
+
+```{r}
+cancelados_dia_demora <- 
+    vuelos %>% 
+    mutate(cancelados= (is.na(horario_salida) | is.na(horario_llegada))) %>% 
+    group_by(anio, mes, dia) %>% 
+    summarise(
+      promedio_demora_salida = mean(atraso_salida, na.rm = TRUE),
+      promedio_demora_llegada = mean(atraso_llegada, na.rm = TRUE),
+      cancelados_proporcion = mean(cancelados)
+    ) %>% 
+  ungroup()
+
+ggplot(cancelados_dia_demora) +
+  geom_point(aes(y = cancelados_proporcion, x = promedio_demora_salida))
+
+ggplot(cancelados_dia_demora) +
+  geom_point(aes(y = cancelados_proporcion, x = promedio_demora_llegada))
+      
+```
+
+
+5. ¿Qué compañía tiene los peores retrasos? Desafío: ¿puedes desenredar el efecto de malos aeropuertos vs. el efecto de malas aerolíneas? ¿Por qué o por qué no? (Sugerencia: piensa en vuelos %>% group_by(aerolinea, destino) %>% summarise(n()))
+
+```{r}
+retrasos_por_compania <- 
+    vuelos %>% 
+    group_by(aerolinea) %>% 
+    summarise( 
+      n = n(),
+      atraso_salida_promedio = mean(atraso_salida, na.rm =TRUE),
+      ) %>% 
+  arrange(desc(atraso_salida_promedio))
+```
+
+9E Endeavor Air Inc.
+
+Desmarañar el efecto de "malos aeropuertos":
+
+```{r}
+retrasos_compania_aeropuerto <- vuelos %>% 
+  
+  filter(!is.na(atraso_llegada)) %>% 
+  
+  group_by(origen, destino, aerolinea) %>% 
+  summarise(
+    atraso_llegada = sum(atraso_llegada),
+    vuelos = n()
+  ) %>% 
+  
+  group_by(origen, destino) %>% 
+  mutate(
+    atraso_llegada_total = sum(atraso_llegada),
+    vuelos_total = sum(vuelos)
+  ) %>% 
+  
+  ungroup() %>% 
+  mutate(
+    atraso_llegada_otros = (atraso_llegada_total - atraso_llegada)/(vuelos_total - vuelos),
+    atraso_llegada_promedio = atraso_llegada/vuelos,
+    atraso_llegada_diferencia = atraso_llegada_promedio - atraso_llegada_otros
+  ) %>% 
+  
+  filter(is.finite(atraso_llegada_diferencia)) %>% 
+  group_by(aerolinea) %>% 
+  summarise(atraso_llegada_diferencia = mean(atraso_llegada_diferencia)) %>% 
+  arrange(desc(atraso_llegada_diferencia))
+
+retrasos_compania_aeropuerto
+```
+
+
+6.¿Qué hace el argumento sort a count(). ¿Cuándo podrías usarlo?
+El argumento sort ordena de acuerdo al n. Podriamos usarlo cada vez que usaramos count() seguido de arrange()
+
+  
