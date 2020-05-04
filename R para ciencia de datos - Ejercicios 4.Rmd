@@ -1,0 +1,274 @@
+---
+title: "R para ciencia de datos ejercicios 4"
+author: "Noelí D'Alessio"
+date: "5/2/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(datos)
+```
+
+# 5.7.1 Ejercicios
+
+### 2.¿Qué avión (codigo_cola) tiene el peor registro de tiempo?
+
+Considero que el promedio de retraso, y la cantidad de vuelos no retrasados o cancelados son posibles metricas para estimar el peor registro de tiempo.
+
+```{r}
+vuelos %>% 
+    filter(!is.na(codigo_cola)) %>% 
+    mutate(vuelos_a_tiempo = !is.na(atraso_salida) & (atraso_salida <= 0)) %>% 
+    group_by(codigo_cola) %>% 
+    summarise(
+      vuelos_a_tiempo = mean(vuelos_a_tiempo),
+      n = n()
+    ) %>% 
+    filter(n >= 20) %>% 
+    filter(min_rank(vuelos_a_tiempo) == 1) 
+```
+
+Filtramos aquellos vuelos que hayan volado al menos 20 veces. 20 es , aproximadamente, la cantidad de vuelos que realizó al menos el 25% de los aviones. 
+
+```{r}
+quantile(count(vuelos, codigo_cola)$n)
+```
+
+Si tomamos una forma diferente de medir el peor registro de tiempo, por ejemplo, el promedio del atraso de cada aerolínea:
+
+```{r}
+vuelos %>% 
+    filter(!is.na(codigo_cola)) %>% 
+    group_by(codigo_cola) %>% 
+    summarise(atraso_llegada = mean(atraso_llegada), n = n()) %>% 
+    filter(n >= 20) %>% 
+    filter(min_rank(desc(atraso_llegada)) == 1)
+```
+
+### 3. ¿A qué hora del día deberías volar si quieres evitar lo más posible los retrasos?
+
+```{r}
+vuelos %>% 
+  group_by(hora) %>% 
+  summarise(atraso_llegada = mean(atraso_llegada, na.rm = TRUE)) %>% 
+  arrange(atraso_llegada)
+```
+
+### 4. Para cada destino, calcula los minutos totales de demora. Para cada vuelo, calcula la proporción de la demora total para su destino.
+
+```{r}
+vuelos %>% 
+  group_by(destino) %>% 
+  mutate(
+    atraso_total = sum(atraso_llegada, na.rm = TRUE),
+    atraso_proporcion = atraso_llegada/atraso_total) %>% 
+  select(destino, mes, dia, horario_salida, aerolinea, vuelo, atraso_total, atraso_proporcion) %>% 
+  arrange(destino, desc(atraso_proporcion))
+```
+
+Sin embargo, también podemos considerar "vuelo" como al número de vuelo, que es un código que utiliza la aerolínea por un servicio de ruta que ofrece.
+El número de vuelo se encuentra en flights flight, pero la combinacion con la aerolinea seria ademas flights aerolinea. 
+
+```{r}
+vuelos %>% 
+  filter(atraso_llegada > 0) %>% 
+  group_by(destino, origen, aerolinea, vuelo) %>% 
+  summarise(atraso_llegada = sum(atraso_llegada)) %>% 
+  group_by(destino) %>% 
+  mutate(atraso_proporcion = atraso_llegada/sum(atraso_llegada))%>% 
+  arrange(destino, desc(atraso_proporcion)) %>% 
+  select(aerolinea, vuelo, origen, destino, atraso_proporcion)
+```
+
+### 5.Los retrasos suelen estar temporalmente correlacionados: incluso una vez que el problema que causó el retraso inicial se ha resuelto, los vuelos posteriores se retrasan para permitir que salgan los vuelos anteriores. Usando lag(), explora cómo el retraso de un vuelo está relacionado con el retraso del vuelo inmediatamente anterior.
+
+```{r}
+atrasos_lagged <-
+    vuelos %>% 
+    arrange(origen, mes, dia, horario_salida) %>% 
+    group_by(origen) %>% 
+    mutate(atraso_salida_lag = lag(atraso_salida)) %>% 
+    filter(!is.na(atraso_salida), !is.na(atraso_salida_lag)) %>% 
+    select(mes, dia, horario_salida, atraso_salida, atraso_salida_lag)
+```
+
+La funcion anterior nos devuelve un data frame con una nueva variable: "atraso_salida_lag". Esta variable guarda el atraso del vuelo anterior. 
+Para lograr esta variable agrupamos por origen, para que nos devuelva el retraso anterior que hubo en el mismo aeropuerto. 
+
+Para graficarlo:
+```{r}
+atrasos_lagged %>% 
+    group_by(atraso_salida_lag) %>% 
+    summarise(promedio_atraso_salida = mean(atraso_salida)) %>% 
+  
+    ggplot(aes(y = promedio_atraso_salida, x = atraso_salida_lag)) +
+    geom_point() +
+    scale_x_continuous(breaks = seq(0, 1500,  by = 120)) +
+    labs(y = "Atraso salida", x = "Atraso salida previo")
+```
+
+
+### 6. Mira cada destino. ¿Puedes encontrar vuelos sospechosamente rápidos? (es decir, vuelos que representan un posible error de entrada de datos). Calcula el tiempo en el aire de un vuelo relativo al vuelo más corto a ese destino. ¿Cuáles vuelos se retrasaron más en el aire?
+
+```{r}
+vuelos_estandarizados<- 
+    vuelos %>% 
+    filter(!is.na(tiempo_vuelo)) %>% 
+    group_by(destino, origen) %>% 
+    mutate(
+      tiempo_vuelo_promedio = mean(tiempo_vuelo),
+      tiempo_vuelo_ds = sd(tiempo_vuelo),
+      n = n()
+    ) %>% 
+    ungroup() %>% 
+    mutate(tiempo_vuelo_standard = (tiempo_vuelo - tiempo_vuelo_promedio) / (tiempo_vuelo_ds + 1))
+
+ggplot(vuelos_estandarizados, aes(x = tiempo_vuelo_standard)) +
+    geom_density()
+```
+
+
+```{r}
+vuelos_estandarizados %>% 
+    arrange(tiempo_vuelo_standard) %>% 
+    select(mes, dia, origen, destino, vuelo, aerolinea, tiempo_vuelo, 
+           tiempo_vuelo_promedio, tiempo_vuelo_standard) %>% 
+    head(10) %>% 
+    print(width = Inf)
+    
+```
+En este caso, el vuelo mas rápido es el vuelo 1499 de Delta que viaja de La Guardia Airport a Atlanta. El promedio de este viaje, es 113 minutos y esta vuelo tarda 65 minutos. Esto representa un desvío standard de -4.5. Dicha diferencia puede deberse a un error en los datos, pero tambien puede deberse a outliers que afectan la media y el desvio standard. 
+
+
+```{r}
+vuelos_estandarizados2 <- 
+    vuelos %>% 
+    filter(!is.na(tiempo_vuelo)) %>% 
+    group_by(destino, origen) %>% 
+    mutate(
+      tiempo_vuelo_mediana = median(tiempo_vuelo),
+      tiempo_vuelo_iqr = IQR(tiempo_vuelo),
+      n = n(),
+      tiempo_vuelo_standard = (tiempo_vuelo - tiempo_vuelo_mediana) / tiempo_vuelo_iqr
+    ) %>% 
+  ungroup()
+
+ggplot(vuelos_estandarizados2, aes(x = tiempo_vuelo_standard)) +
+    geom_density()
+```
+
+```{r}
+  vuelos_estandarizados2 %>% 
+      arrange(tiempo_vuelo_standard) %>% 
+      select(mes, dia, origen, destino, vuelo, aerolinea, tiempo_vuelo, 
+           tiempo_vuelo_mediana, tiempo_vuelo_iqr, tiempo_vuelo_standard) %>% 
+      head() %>% 
+      print(width = Inf)
+```
+
+- Vuelos más rápidos de acuerdo a la velocidad (mph):
+
+```{r}
+vuelos %>% 
+      mutate(mph = distancia / (tiempo_vuelo/60)) %>% 
+      ggplot(aes(x = mph)) +
+      geom_histogram(binwidth = 10)
+```
+
+
+```{r}
+vuelos %>% 
+    mutate(mph = distancia / (tiempo_vuelo/60)) %>% 
+    arrange(desc(mph)) %>% 
+    select(mph, vuelo, aerolinea, mes, dia, horario_salida, atraso_salida, atraso_llegada) %>% 
+    head(5)
+```
+El vuelo más rápido tenía una velocidad de 703 mph.También podemos observar que el primer vuelo estaba retrasado 9' y llegó 14 minutos antes. El segundo vuelo tenía una demora de 45 y logró llegar con solo 26' de demora. Algo similar ocurrio con los dos siguientes vuelos. El quinto vuelo tuvo un atraso en su salida de 1', y llegó 28' antes. 
+
+
+La última pregunta de este punto es cuáles son los vuelos más retrasados. 
+
+```{r}
+vuelos_retrasados <- 
+    vuelos %>% 
+    group_by(origen, destino) %>% 
+    mutate(
+      tiempo_vuelo_minimo = min(tiempo_vuelo, na.rm = TRUE),
+      tiempo_vuelo_atraso = tiempo_vuelo - tiempo_vuelo_minimo,
+      tiempo_vuelo_porcentaje = tiempo_vuelo_atraso / tiempo_vuelo_minimo * 100
+    )
+
+vuelos_retrasados
+    
+```
+
+```{r}
+vuelos_retrasados %>% 
+    arrange(desc(tiempo_vuelo_atraso)) %>% 
+    select(tiempo_vuelo_atraso, tiempo_vuelo_porcentaje, vuelo, aerolinea, mes, dia, horario_salida, tiempo_vuelo) %>% 
+    head() %>% 
+    print(width = Inf)
+```
+
+### 7. Encuentra todos los destinos que son volados por al menos dos operadores. Usa esta información para clasificar a las aerolíneas.
+
+Primer paso: calcular 
+
+```{r}
+vuelos %>%  
+  # Cuántos aeropuertos reciben vuelos de al menos dos aerolíneas
+  
+  group_by(destino) %>% 
+  mutate(n_aerolineas = n_distinct(aerolinea)) %>% 
+  filter(n_aerolineas > 1) %>% 
+  
+  # Ranking de cantidad de destinos por aerolínea
+  
+  group_by(aerolinea) %>% 
+  summarise(n_destinos = n_distinct(destino)) %>% 
+  arrange(desc(n_destinos))
+
+filter(aerolineas, aerolinea == "EV")
+```
+
+### Para cada avión, cuenta el número de vuelos antes del primer retraso de más de 1 hora.
+(Tendré en cuenta el atraso_salida)
+
+```{r}
+vuelos %>% 
+    select(codigo_cola, anio, mes, dia, atraso_salida) %>% 
+    filter(!is.na(atraso_salida)) %>% 
+    arrange(codigo_cola, anio, mes, dia) %>% 
+    group_by(codigo_cola) %>%  
+  
+    mutate(hr_atraso_acumuladas = cumsum(atraso_salida > 60)) %>%
+  
+    summarise(total_vuelos = sum(hr_atraso_acumuladas < 1)) %>% 
+  
+    arrange(desc(total_vuelos))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
