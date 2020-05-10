@@ -181,12 +181,101 @@ diamonds %>%
 ```
 There are not many diamonds with a carat between 0.93 and 0.99.
 
+### library("ggstance")
+
+Instead of using coord_flip() to have horizontal boxplot we can use geom_boxploth from the library "ggstance":
+
+```{r}
+ggplot(data = mpg) +
+    geom_boxploth(mapping = aes(y = reorder(class, hwy, FUN = median), x = hwy))
+```
+
+### With large data, instead of boxploth (which displays "outlying values") geom_lv drom the library ("lvplot"). 
+
+```{r}
+ggplot(diamonds, aes(x = cut, y = price)) +
+  geom_lv()
+```
 
 
+```{r}
+diamonds %>% 
+    count(color, cut) %>% 
+    group_by(cut) %>% 
+    mutate(prop = n / sum(n)) %>% 
+    ggplot(mapping = aes(x = color, y = cut)) +
+    geom_tile(mapping = aes(fill = prop)) +
+    scale_fill_viridis(limits = c(0, 1))
+```
+
+```{r}
+flights %>% 
+    group_by(month, dest) %>% 
+    summarise(dep_delay = mean(dep_delay, na.rm = TRUE)) %>% 
+    ggplot(aes(x = factor(month), y = dest, fill = dep_delay)) +
+    geom_tile() +
+    labs(x = "Month", y = "Destination", fill = "Average of Departure Delay")
+    
+```
 
 
+To improve it we could remove the NA's. Also, sort destination by a meaninfulg quatinty. And better colors for the graphic. 
 
+```{r}
+flights %>% 
+    group_by(month, dest) %>% 
+    summarise(dep_delay = mean(dep_delay, na.rm = TRUE)) %>% 
+    group_by(dest) %>% 
+    filter(n() == 12) %>% 
+    ungroup() %>% 
+    mutate( dest = reorder(dest, dep_delay)) %>% 
+    ggplot(aes(x = factor(month), y = dest, fill = dep_delay)) +
+    geom_tile() +
+    scale_fill_viridis() +
+    labs(x = "Month", y = "Destnation", fill = "Departure Delay")
+```
+    
+# Covariation with 2 continuous variables 
 
+1. Instead of summarising the conditional distribution with a boxplot, you could use a frequency polygon. What do you need to consider when using cut_width() vs cut_number()? How does that impact a visualisation of the 2d distribution of carat and price?
+
+cut_number: we specify how many bind we want. Numbers in each bin are calculated automatically.
+```{r}
+ggplot(data = diamonds, mapping = aes(color = cut_number(carat, 5), x = price)) +
+  geom_freqpoly() +
+  labs(x = "Price", y = "Count", color = "Carat")
+```
+
+cut_width: we specify the width of the bin. For example, we could choose 2, but there are not that many amount of diamonds with a carat larger than 2, so better smaller. 0.5 could be another option but it would create just too many bins (12), so we choose 1 as the width. 
+
+```{r}
+ggplot(data = diamonds, mapping = aes(color = cut_width(carat, 1, boundary = 0), x = price)) +
+    geom_freqpoly() +
+    labs(x = "Price", y = "Count", color = "Carat")
+```
+
+2. Visualise the distribution of carat, partitioned by price.
+
+First, we will part the continuos variable of price into 10 bins:
+```{r}
+ggplot(data = diamonds, mapping = aes(x = cut_number(price, 10), y = carat)) +
+    geom_boxplot(varwidth = TRUE) +
+    coord_flip() +
+    xlab("Price")
+```
+
+Now we are going to determine the width of the bins as $2000.
+
+```{r}
+ggplot(diamonds, aes(x = cut_width(price, 2000, boundary = 0), y = carat)) +
+    geom_boxplot(varwidth = TRUE) +
+    coord_flip() +
+    xlab("Price")
+```
+
+3. How does the price distribution of very large diamonds compare to small diamonds. Is it as you expect, or does it surprise you?
+
+4. Combine two of the techniques you’ve learned to visualize the combined distribution of cut, carat, and price.
 
 
 
