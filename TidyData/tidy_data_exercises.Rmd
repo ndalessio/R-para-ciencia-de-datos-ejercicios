@@ -1,0 +1,99 @@
+---
+title: "tidy_data_exercises_R4DS"
+author: "Noelí D'Alessio"
+date: "5/13/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Exercise 12.2.2
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+```
+
+2. Compute the rate for table2, and table4a + table4b. You will need to perform four operations:
+
+Extract the number of TB cases per country per year.
+Extract the matching population per country per year.
+Divide cases by population, and multiply by 10000.
+Store back in the appropriate place.
+
+```{r}
+table2_cases <- 
+    filter(table2, type == "cases") %>% 
+    rename(cases = count) %>% 
+    arrange(country, year)
+
+table2_population <- filter(table2, type == "population") %>% 
+    rename(population = count) %>% 
+    arrange(country, year)
+
+t2_cases_per_cap <- 
+    tibble(
+    year = table2_cases$year,
+    country = table2_cases$country,
+    cases = table2_cases$cases,
+    population = table2_population$population
+          ) %>% 
+    mutate(cases_per_cap = (cases / population) * 1000)
+    
+t2_cases_per_cap <- t2_cases_per_cap %>% 
+    mutate(type = "cases_per_cap") %>% 
+    rename(count = cases_per_cap)
+
+view(t2_cases_per_cap)
+
+t2<- bind_rows(table2, t2_cases_per_cap) %>% 
+    arrange(country, year,type, count)
+view(t2)
+```
+
+
+(table4a contains cases and table4b contains population)
+
+```{r}
+table4c <- 
+    tibble(
+      country = table4a$country,
+      cases_cap_1999 = table4a[["1999"]] / table4b[["1999"]] * 1000,
+      cases_cap_2000 = table4a[["2000"]] / table4b[["2000"]] * 1000
+    )
+```
+
+Recreate the plot showing change in cases over time using table2 instead of table1. What do you need to do first?
+
+```{r}
+table2 %>% 
+    filter(type == "cases") %>% 
+    ggplot(aes(year, count)) +
+    geom_line(aes(group = country), color= "grey50") +
+    geom_point(aes(color = country)) +
+    scale_x_continuous(breaks = unique(table2$year)) +
+    ylab("cases")
+```
+
+
+# Pivoting
+
+Why are pivot_longer() and pivot_wider() not perfectly symmetrical?
+Carefully consider the following example:
+
+stocks <- tibble(
+  year   = c(2015, 2015, 2016, 2016),
+  half  = c(   1,    2,     1,    2),
+  return = c(1.88, 0.59, 0.92, 0.17)
+)
+stocks %>% 
+  pivot_wider(names_from = year, values_from = return) %>% 
+  pivot_longer(`2015`:`2016`, names_to = "year", values_to = "return")
+  
+(Hint: look at the variable types and think about column names.)
+
+pivot_longer() has a names_ptype argument, e.g. names_ptype = list(year = double()). What does it do?
+
+
+

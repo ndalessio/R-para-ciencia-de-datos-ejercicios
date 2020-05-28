@@ -1,7 +1,6 @@
 ---
-title: "R para ciencia de datos - Ejercicios"
+title: "DataTransformation_filter()"
 author: "Noelí D'Alessio"
-date: "4/24/2020"
 output: html_document
 ---
 
@@ -126,17 +125,3 @@ No sucede nada, solo se muestra una vez la variable repetida.
 5.4.3 ¿Qué hace la función one_of()? ¿Por qué podría ser útil en conjunto con este vector?
 
 one_of permite seleccionar las variables que combinan con los nombres de cierto vector de caracteres. Puede ser útil almacenar las variables que queremos en n vector, para agregar o quitar en el vector. También es útil utilizar on_of ya que si escribimos mal una variable nos avisaría que esa variable no existe.
-
-
-
-
-
-
-                           
-
-
-
-
-
-
-

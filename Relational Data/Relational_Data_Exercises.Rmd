@@ -1,0 +1,150 @@
+---
+title: "Relational_Data_Exercises"
+author: "Noelí D'Alessio"
+date: "5/25/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("tidyverse")
+library("nycflights13")
+library("viridis")
+```
+
+1.Imagine you wanted to draw (approximately) the route each plane flies from its origin to its destination. What variables would you need? What tables would you need to combine?
+
+Just checking how inner_join works:
+```{r}
+flights_joined <- flights %>% 
+    inner_join(airlines, by = "carrier")
+```
+
+To join airports + flights, we can use airport codes. But airport codes are in a variable called "faa" in airports dataset. In flights data set they are in "origin" and "dest". We solve this with by = c("dest" = "faa").
+```{r}
+flights_with_airport_names <- flights %>% 
+    inner_join(airports, by = c("dest" = "faa"))
+
+View(flights_with_airport_names)
+```
+
+Ok, now the answer to this question:
+```{r}
+flights_latlon <- flights %>% 
+    inner_join(select(airports, origin = faa, origin_lat = lat, origin_lon = lon), by =   "origin") %>% 
+    inner_join(select(airports, dest = faa, dest_lat = lat, dest_lon = lon), by = "dest")
+
+View(flights_latlon)
+```
+
+Plotting the routes of the first 100 flights:
+```{r}
+flights_latlon %>% 
+    slice(1:100) %>% 
+    ggplot(aes(
+      x = origin_lon, xend = dest_lon,
+      y = origin_lat, yend = dest_lat
+      )) +
+    borders("state") +
+    geom_segment(arrow = arrow(length = unit(0.1, "cm"))) +
+    coord_quickmap() +
+    labs(y = "Latitude", x = "Longitude")
+```
+
+# Keys
+
+1. Add a surrogate key to flights.
+
+```{r}
+flights %>%  
+    arrange(year, month, day, sched_dep_time, carrier, flight) %>% 
+    mutate(flight_id = row_number()) %>% 
+    glimpse()
+```
+
+2. Identify the keys in the following datasets
+
+Lahman::Batting,
+babynames::babynames
+nasaweather::atmos
+fueleconomy::vehicles
+ggplot2::diamonds
+
+#### a. Lahman::Batting
+```{r}
+library("Lahman")
+```
+```{r}
+Lahman::Batting %>% 
+  count(playerID, yearID, stint) %>% 
+  filter(n > 1) %>% 
+  nrow()
+```
+
+
+####☺ b. babynames::babynames
+```{r}
+library("babynames")
+```
+
+```{r}
+babynames::babynames %>%
+  count(year, sex, name) %>%
+  filter(n > 1) %>%
+  nrow()
+
+```
+
+#### c. nasaweather::atmos
+```{r}
+library("nasaweather")
+```
+
+```{r}
+nasaweather::atmos %>% 
+    count(lat, long, year, month) %>% 
+    filter(n > 1) %>% 
+    nrow()
+```
+
+#### d. fueleconomy::vehicles
+```{r}
+library("fueleconomy")
+```
+
+```{r}
+fueleconomy::vehicles %>% 
+    count(id) %>% 
+    filter(n > 1) %>% 
+    nrow()
+```
+#### e. ggplot2::diamonds
+
+There is no primary key for ggplot2::diamonds since there is no combination of variables that uniquely identifies each observation. This is implied by the fact that the number of distinct rows in the dataset is less than the total number of rows, meaning that there are some duplicate rows.
+
+```{r}
+ggplot2::diamonds %>%
+  distinct() %>%
+  nrow()
+
+nrow(ggplot2::diamonds)
+
+```
+
+In this case, we can add a subrrogated key:
+
+```{r}
+diamonds <- 
+    mutate(ggplot2::diamonds, id = row_number())
+```
+
+
+3. Draw a diagram illustrating the connections between the Batting, Master, and Salaries tables in the Lahman package. Draw another diagram that shows the relationship between Master, Managers, AwardsManagers.
+
+How would you characterise the relationship between the Batting, Pitching, and Fielding tables?
+
+
+
