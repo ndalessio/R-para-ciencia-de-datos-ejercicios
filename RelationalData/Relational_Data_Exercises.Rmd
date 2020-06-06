@@ -1,7 +1,6 @@
 ---
 title: "Relational_Data_Exercises"
 author: "Noelí D'Alessio"
-date: "5/25/2020"
 output: html_document
 ---
 
@@ -14,6 +13,21 @@ library("tidyverse")
 library("nycflights13")
 library("viridis")
 ```
+
+
+```{r}
+df <- tibble(
+  x = sample(10, 100, rep = TRUE),
+  y = sample(10, 100, rep = TRUE)
+)
+
+distinct(df) %>% group_by(x) %>%  arrange(x)
+```
+
+
+
+
+## 13.2.1 Exercises
 
 1.Imagine you wanted to draw (approximately) the route each plane flies from its origin to its destination. What variables would you need? What tables would you need to combine?
 
@@ -54,7 +68,7 @@ flights_latlon %>%
     labs(y = "Latitude", x = "Longitude")
 ```
 
-# Keys
+## 13.3.1 Exercises
 
 1. Add a surrogate key to flights.
 
@@ -85,7 +99,7 @@ Lahman::Batting %>%
 ```
 
 
-####☺ b. babynames::babynames
+#### b. babynames::babynames
 ```{r}
 library("babynames")
 ```
@@ -147,4 +161,285 @@ diamonds <-
 How would you characterise the relationship between the Batting, Pitching, and Fielding tables?
 
 
+
+## 13.4.6 Exercises
+
+1. Compute the average delay by destination, then join on the airports data frame so you can show the spatial distribution of delays. Here’s an easy way to draw a map of the United States:
+
+Example:
+```{r}
+airports %>%
+  semi_join(flights, c("faa" = "dest")) %>%
+  ggplot(aes(lon, lat)) +
+    borders("state") +
+    geom_point() +
+    coord_quickmap()
+```
+
+```{r}
+delay_by_dest <- 
+  flights %>%  
+  group_by(dest) %>% 
+  summarise(delay = mean(arr_delay, na.rm = TRUE)) %>% 
+  inner_join(airports, by = c(dest = "faa"))
+```
+
+```{r}
+delay_by_dest %>% 
+  ggplot(aes(lon, lat, size = delay, color = delay)) +
+  borders("state") +
+  geom_point() +
+  coord_quickmap()
+```
+
+
+2. Add the location of the origin and destination (i.e. the lat and lon) to flights.
+
+```{r}
+airports_locations <- 
+  airports %>% 
+  select(faa, lat, lon)
+  
+flights_locations <- 
+  flights %>% 
+  select(year:day, origin, dest) %>% 
+  left_join(airports_locations, by = c("origin" = "faa"), suffix = c("_origin", "_dest")) %>% 
+  left_join(airports_locations, by = c("dest" = "faa"), suffix = c("_origin", "_dest"))
+```
+
+3. Is there a relationship between the age of a plane and its delays?
+```{r}
+plane_cohorts <- 
+  inner_join(flights,
+             select(planes, tailnum, plane_year = year),
+             by = "tailnum") %>% 
+  
+  mutate(age = year - plane_year) %>% 
+  filter(!is.na(age)) %>% 
+  mutate(age = if_else(age > 25, 25L, age)) %>% 
+  group_by(age) %>% 
+  summarise(
+    dep_delay_mean = mean(dep_delay, na.rm = TRUE),
+    dep_delay_sd = sd(dep_delay, na.rm = TRUE),
+    arr_delay_mean = mean(arr_delay, na.rm = TRUE),
+    arr_delay_sd = mean(arr_delay, na.rm = TRUE)
+  ) 
+
+plane_cohorts
+```
+
+```{r}
+ggplot(plane_cohorts, aes(x = age, y = dep_delay_mean)) +
+  geom_point() +
+  scale_x_continuous("Age of plane in years", breaks = seq(0, 30, by = 10)) +
+  scale_y_continuous("Mean departure delay in minutes")
+```
+
+```{r}
+ggplot(plane_cohorts, aes(x = age, y = arr_delay_mean)) +
+  geom_point() +
+  scale_x_continuous("Age of plane in years", breaks = seq(0, 30, by = 10)) +
+  scale_y_continuous("Mean departure delay in minutes")
+```
+
+4.What weather conditions make it more likely to see a delay?
+
+```{r}
+flights_weather <- 
+  flights %>% 
+  inner_join(weather, by = c(
+    "origin" = "origin",
+    "year" = "year",
+    "month" = "month",
+    "day" = "day",
+    "hour" = "hour"
+  )) 
+  
+flights_weather
+
+flights_weather %>% 
+  group_by(precip) %>% 
+  summarise(delay = mean(dep_delay, na.rm = TRUE)) %>% 
+  ggplot(aes(x = precip, y = delay)) +
+  geom_line() + geom_point()
+
+```
+
+5. What happened on June 13, 2013? Display the spatial pattern of delays, and then use Google to cross-reference with the weather.
+
+```{r}
+flights %>% 
+  filter(year == 2013, month == 6, day == 13) %>% 
+  group_by(dest) %>% 
+  summarise(delay = mean(arr_delay, na.rm = TRUE)) %>% 
+  inner_join(airports, by = c("dest" = "faa")) %>% 
+  ggplot(aes(y = lat, x = lon, size = delay, colour = delay)) +
+  borders("state") +
+  geom_point() +
+  coord_quickmap() +
+  scale_color_viridis()
+```
+
+## 13.5 Exercises (filtering joins)
+
+1. What does it mean for a flight to have a missing tailnum? What do the tail numbers that don’t have a matching record in planes have in common? (Hint: one variable explains ~90% of the problems.)
+
+```{r}
+flights %>% 
+  anti_join(planes, by = "tailnum") %>% 
+  count(tailnum, sort = TRUE)
+```
+
+```{r}
+flights %>% 
+  anti_join(planes, by = "tailnum") %>% 
+  filter(is.na(tailnum))
+```
+
+```{r}
+flights %>% 
+  filter(is.na(tailnum), !is.na(arr_time)) %>% 
+  nrow()
+```
+
+Flights with missing tailnum are, probably, cancelled flights. 
+Many tail number that don't have a matching value in planes are registered in American Airlines (AA) or Envoy Airlines (MQ) (accordng to the documentation).
+
+```{r}
+flights %>% 
+    anti_join(planes, by = "tailnum") %>% 
+    count(carrier, sort = TRUE) %>% 
+    mutate(p = n / sum(n))
+```
+
+This doesn't clear up the problem completly. 
+
+2. Filter flights to only show flights with planes that have flown at least 100 flights.
+
+```{r}
+flights_100 <- flights %>% 
+    filter(!is.na(tailnum)) %>% 
+    group_by(tailnum) %>% 
+    count() %>% 
+    filter(n >=100)
+
+flights_100
+```
+
+Then we use semi-join so we keep those observations  from flights that match flights_100.
+
+```{r}
+flights %>% 
+  semi_join(flights_100, by = "tailnum")
+```
+
+Another option:
+```{r}
+flights %>% 
+  filter(!is.na(tailnum)) %>% 
+  group_by(tailnum) %>% 
+  mutate(n = n()) %>% 
+  filter(n >= 100)
+```
+
+3. Combine fueleconomy::vehicles and fueleconomy::common to find only the records for the most common models.
+
+```{r}
+fueleconomy::vehicles %>% 
+    semi_join(fueleconomy::common, by = c("make", "model"))
+```
+
+We joined it with two variables instead of just using only 1 variable (model) because there are different make (brands) that manufactered cars with the same model. 
+
+```{r}
+fueleconomy::common %>% 
+    distinct(model, make) %>% # rows that have different model and brand. So they don't show                                         repeated. Example 200 Audi and then again 200 Audi
+    group_by(model) %>%  # show grouping by model
+    filter(n() > 1) %>%  # filter if one model is there more than once
+    arrange(model)
+```
+
+```{r}
+fueleconomy::vehicles %>% 
+    distinct(model, make) %>% 
+    group_by(model) %>% 
+    filter(n() > 1) %>% 
+    arrange(model)
+```
+
+
+4.Find the 48 hours (over the course of the whole year) that have the worst delays. Cross-reference it with the weather data. Can you see any patterns?
+
+This exercise will use departure delay because we have weather data from NYC, and we have flights from NYC airport. We assume that we can see better differences in de the departure delay, rather arravil (that could be affected by factors in other cities).
+
+
+
+```{r}
+worst_flights <- flights %>% 
+    mutate(hour = sched_dep_time %/% 100) %>%   #Example: 5 - 18 - 23
+    group_by(origin, year, month, day, hour) %>% 
+    summarise(dep_delay = mean(dep_delay, na.rm = TRUE)) %>% #average delay per day, hour and dest
+    ungroup() %>% 
+    arrange(desc(dep_delay)) %>%  #arrange according worst delays
+    slice(1:48) #I select the 48 observations with the worst delays
+    
+
+worst_flights
+```
+
+Then we use semi_join to get the weather from this hours
+```{r}
+weather_most_delayed <- semi_join(weather, worst_flights, by = c("origin", "year", "month", "day", "hour"))
+
+weather_most_delayed
+```
+
+```{r}
+select(weather_most_delayed, temp, wind_speed, precip) %>% 
+  print(n = 48)
+```
+
+```{r}
+ggplot(weather_most_delayed, aes(precip, wind_speed, color = temp)) + 
+    geom_point()
+```
+
+This plots shows the weather condition of the flights with worst delays. Can't compare if there is a correlation between weather and delay because we don't have data to compare with (all flights).
+
+
+5. What does anti_join(flights, airports, by = c("dest" = "faa")) tell you? What does anti_join(airports, flights, by = c("faa" = "dest")) tell you?
+
+
+```{r}
+anti_join(flights, airports, by = c("dest" = "faa"))
+```
+
+
+6. You might expect that there’s an implicit relationship between plane and airline, because each plane is flown by a single airline. Confirm or reject this hypothesis using the tools you’ve learned above.
+
+```{r}
+planes_carrier <- flights %>% 
+    filter(!is.na(tailnum)) %>% 
+    distinct(carrier, tailnum) 
+
+planes_carrier
+```
+
+```{r}
+planes_carrier%>% 
+    count(tailnum) %>% 
+    filter(n > 1) %>% 
+    nrow()
+
+planes_carrier
+```
+
+
+```{r}
+carrier_plane_names <- planes_carrier %>% 
+    group_by(tailnum) %>% 
+    filter( n() > 1) %>% 
+    left_join(airlines, by = "carrier") %>% 
+    arrange(tailnum, carrier, name)
+```
 
