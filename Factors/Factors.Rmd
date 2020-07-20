@@ -1,0 +1,247 @@
+---
+title: "Factors"
+author: "Noelí D'Alessio"
+date: "6/26/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Factors
+
+```{r}
+x1 <- c("Dec", "Jan", "Apr")
+
+month_levels <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dec")
+
+y1 <- factor(x1, levels = month_levels)
+y1
+
+sort(y1)
+```
+
+```{r}
+x2 <- c("Dec", "Jam", "Apr")
+y2 <- parse_factor(x2, levels = month_levels)
+```
+
+# foorcats::gss_cat - General Social Survey
+
+```{r}
+gss_cat
+```
+
+### 15.3.1 Exercise
+
+1. Explore the distribution of rincome (reported income). What makes the default bar chart hard to understand? How could you improve the plot?
+
+```{r}
+ggplot(gss_cat, aes(rincome)) +
+    geom_bar() +
+    scale_x_discrete(drop = FALSE) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+# the problem was the labels overlapping
+```
+
+
+Also, there are some ways to improve this bar chart:
+-Removing "not applicable"
+-Renaming Lt $ 1000 as Less than $1000
+-Using colo to distinguish non-response categories (no answer, dk, refused)
+-Adding meaningful labels
+-Formating numbers with commas
+
+```{r}
+gss_cat %>% 
+  filter(!rincome %in% c("Not applicable")) %>% 
+  mutate(rincome = fct_recode(rincome, "Less than $1000" = "Lt $1000")) %>% 
+  mutate(rincome_na = rincome %in% c("Refused", "Don't know", "No answer")) %>% 
+  ggplot(aes(x = rincome, fill = rincome_na)) +
+  geom_bar() +
+  coord_flip() +
+  scale_y_continuous("Number of Respondents", labels = scales::comma) +
+  scale_x_discrete("Respondent's Income") +
+  scale_fill_manual(values = c("FALSE" = "black", "TRUE" = "grey")) +
+  theme(legend.position = "None")
+```
+
+2. What is the most common relig in this survey? What’s the most common partyid?
+
+```{r}
+gss_cat %>% 
+  count(relig) %>% 
+  arrange(desc(n))
+```
+
+
+```{r}
+ggplot(gss_cat, aes(relig)) +
+  geom_bar() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+gss_cat %>% 
+  count(partyid) %>% 
+  arrange(desc(n)) 
+```
+
+```{r}
+ggplot(gss_cat, aes(partyid)) +
+    geom_bar() +
+    coord_flip()
+```
+
+
+3. Which relig does denom (denomination) apply to? How can you find out with a table? How can you find out with a visualisation?
+
+```{r}
+levels(gss_cat$denom)
+```
+
+### 15.4.1 Exercises
+
+1. There are some suspiciously high numbers in tvhours. Is the mean a good summary?
+
+
+```{r}
+summary(gss_cat[["tvhours"]])
+```
+
+```{r}
+gss_cat %>% 
+  filter(!is.na(tvhours)) %>% 
+  ggplot(aes(x = tvhours)) +
+  geom_histogram(binwidth = 1)
+```
+
+2. For each factor in gss_cat identify whether the order of the levels is arbitrary or principled.
+
+```{r}
+keep(gss_cat, is.factor) %>% names()
+```
+
+This 6 are categorical variables. 
+
+- In marital we could say there is a logical order:
+
+```{r}
+levels(gss_cat[["marital"]])
+```
+```{r}
+gss_cat %>% 
+  ggplot(aes(x = marital)) +
+  geom_bar()
+```
+
+- In the case of the variable race, each category seems to be ordered accordig the number of observations:
+
+```{r}
+levels(gss_cat[["race"]])
+```
+```{r}
+gss_cat %>% 
+  ggplot(aes(x = race)) +
+  geom_bar() +
+  scale_x_discrete(drop = FALSE)
+```
+
+- In this case, the varibles have a decreasing order except fot the missing value's variables, which 3 of them are at the beggining and 1 at the end.This missing income level categories should be all together.
+
+```{r}
+levels(gss_cat[["rincome"]])
+```
+
+- There is a logic in this order, it works as a continumm from "Strong republican" to "Strong democrat".
+
+```{r}
+levels(gss_cat[["partyid"]])
+```
+
+- In the case of the variable religthe order of the levels is arbitrary.
+
+```{r}
+levels(gss_cat[["relig"]])
+```
+```{r}
+ggplot(gss_cat, aes(x = relig)) +
+  geom_bar() +
+  coord_flip()
+```
+
+- denom
+
+```{r}
+levels(gss_cat[["denom"]])
+```
+
+- Denom doesn't seem to have a special order either.
+
+```{r}
+ggplot(gss_cat, aes(x = denom)) +
+  geom_bar() +
+  coord_flip()
+```
+
+3. Why did moving “Not applicable” to the front of the levels move it to the bottom of the plot?
+
+Because that gives the level “Not applicable” an integer value of 1.
+
+#### 15.5.1 Exercises
+
+1. How have the proportions of people identifying as Democrat, Republican, and Independent changed over time?
+
+```{r}
+gss_cat %>% 
+  mutate(
+    partyid = 
+        fct_collapse(partyid,
+        other = c("No answer", "Don't know", "Other party"),
+        rep = c("Strong republican", "Not str republican"),
+        ind = c("Ind,near rep", "Independent", "Ind,near dem"),
+        dem = c("Not str democrat", "Strong democrat")
+        )
+    ) %>% 
+  count(year, partyid) %>% 
+  group_by(year) %>% 
+  mutate(p = n / sum(n)) %>% 
+  ggplot(aes(x = year, y = p, colour = fct_reorder2(partyid, year, p))) +
+  geom_point() +
+  geom_line() +
+  labs(colour = "Party ID")
+```
+
+
+2. How could you collapse rincome into a small set of categories?
+
+```{r}
+levels(gss_cat[["rincome"]])
+```
+
+
+```{r}
+library("stringr")
+```
+```{r}
+gss_cat %>% 
+    mutate(
+      rincome =
+        fct_collapse(
+          rincome, 
+          `Unknown` = c("No answer", "Don't know", "Refused", "Not applicable"),
+          `Lt $5000` = c("Lt $1000", 
+          str_c("$", c("1000", "3000", "4000"), " to ", c("2999", "3999", "4999"))),
+          `$5000 to 10000` = 
+            str_c("$", c("5000", "6000", "7000", "8000"), " to ",
+            c("5999", "6999", "7999", "9999"))
+        )
+      ) %>% 
+  ggplot(aes(x = rincome)) +
+  geom_bar() +
+  coord_flip()
+```
+

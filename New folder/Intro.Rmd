@@ -1,0 +1,39 @@
+---
+title: "First steps"
+date: "6/24/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+1. Crear un proyecto y por qué es importante
+
+a. En una carpeta ya existente. 
+b. Crear una nueva carpeta donde irá el proyecto. 
+
+2. Paneles de RStudio
+
+3. Packages o paquetes
+
+An R package is a collection of functions, data, and documentation that extends the capabilities of base R. You only need to install a package once, but you need to reload it every time you start a new session.
+
+Para instalar paquetes usamos la siguiente sintaxis. Ejecutarlo en la consola.
+```{r}
+install.packages("nombreDelPaquete")
+```
+
+Instalamos tydiverse:
+```{r}
+# install.packages("tidyverse")
+```
+
+
+Una vez instalado un paquete, debemos cargarlo. Generalmente lo hacemos al principio del script.
+```{r}
+library("tidyverse")
+```
+
+
