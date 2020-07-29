@@ -1,0 +1,69 @@
+---
+title: "Dates and Times exercises"
+author: "Noelí D'Alessio"
+date: "7/28/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("tidyverse")
+library("lubridate")
+library("nycflights13")
+```
+
+16.2.4 Exercises
+
+1. What happens if you parse a string that contains invalid dates?
+
+```{r}
+ymd(c("2010-10-10", "bananas")) 
+```
+
+It produces a NA value.
+
+2.What does the tzone argument to today() do? Why is it important?
+
+```{r}
+today(tzone = "Africa/Banjul")
+```
+```{r}
+now(tzone = "Africa/Banjul")
+```
+
+A lis of the different tzones: 
+
+https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+
+3. Use the appropriate lubridate function to parse each of the following dates:
+```{r}
+d1 <- "January 1, 2010"
+d2 <- "2015-Mar-07"
+d3 <- "06-Jun-2017"
+d4 <- c("August 19 (2015)", "July 1 (2015)")
+d5 <- "12/30/14" # Dec 30, 2014
+```
+
+```{r}
+mdy(d1)
+ymd(d2)
+dmy(d3)
+mdy(d4)
+mdy(d5)
+```
+
+16.3.4 Exercises
+
+1. How does the distribution of flight times within a day change over the course of the year?
+
+2. Compare dep_time, sched_dep_time and dep_delay. Are they consistent? Explain your findings.
+
+3. Compare air_time with the duration between the departure and arrival. Explain your findings. (Hint: consider the location of the airport.)
+
+4. How does the average delay time change over the course of a day? Should you use dep_time or sched_dep_time? Why?
+
+5. On what day of the week should you leave if you want to minimise the chance of a delay?
+
+5. What makes the distribution of diamonds$carat and flights$sched_dep_time similar?
+
+6. Confirm my hypothesis that the early departures of flights in minutes 20-30 and 50-60 are caused by scheduled flights that leave early. Hint: create a binary variable that tells you whether or not a flight was delayed.
