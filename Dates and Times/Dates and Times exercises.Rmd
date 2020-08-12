@@ -12,7 +12,28 @@ library("lubridate")
 library("nycflights13")
 ```
 
-16.2.4 Exercises
+### Mutating the dataset to date-time:
+```{r}
+make_datetime_100 <- function(year, month, day, time){
+  make_datetime(year, month, day, time %/% 100, time %% 100)
+}
+```
+
+```{r}
+flights_dt <- flights %>% 
+  filter(!is.na(dep_time), !is.na(arr_time)) %>% 
+  mutate(
+    dep_time = make_datetime_100(year, month, day, dep_time),
+    arr_time = make_datetime_100(year, month, day, arr_time),
+    sched_dep_time = make_datetime_100(year, month, day, sched_dep_time),
+    sched_arr_time = make_datetime_100(year, month, day, sched_arr_time)
+  ) %>% 
+  select(origin, dest, ends_with("delay"), ends_with("time"))
+
+flights_dt
+```
+
+### 16.2.4 Exercises
 
 1. What happens if you parse a string that contains invalid dates?
 
@@ -52,18 +73,208 @@ mdy(d4)
 mdy(d5)
 ```
 
-16.3.4 Exercises
+### 16.3.4 Exercises Date-time Components
 
 1. How does the distribution of flight times within a day change over the course of the year?
 
+```{r}
+flights_dt %>% 
+  filter(!is.na(dep_time)) %>% 
+  mutate(dep_hour = update(dep_time, yday = 1)) %>% 
+  mutate(month = factor(month(dep_time))) %>% 
+  ggplot(aes(dep_hour, color = month)) +
+  geom_freqpoly(aes(y =..density..), binwidth = 60 * 60) 
+```
+
+
+```{r}
+flights_dt %>% 
+  filter(!is.na(dep_time)) %>% 
+  mutate(dep_hour = update(dep_time, yday = 1))
+
+head(flights_dt$dep_hour)
+```
+
+
 2. Compare dep_time, sched_dep_time and dep_delay. Are they consistent? Explain your findings.
+
+To be consistent dep_time should be the sum of sched_dep_time and dep_delay.
+
+```{r}
+flights_dt %>% 
+    mutate(dep_time2 = sched_dep_time + dep_delay * 60) %>% #*60 cause we sum seconds
+    filter(dep_time2 != dep_time) %>% 
+    select(dep_time2, dep_time, sched_dep_time, dep_delay)
+```
+
+```{r}
+flights_dt %>% 
+    mutate(dep_time2 = sched_dep_time + dep_delay * 60) %>% 
+    select(dep_time2, dep_time, sched_dep_time, dep_delay)
+```
+
+There are some mistakes in the data due to how we built dep_time. We should have built it adding sched_dep_time and dep_delay, cause that would have changed automatically the day (if the flight was delayed to the next day).
+
 
 3. Compare air_time with the duration between the departure and arrival. Explain your findings. (Hint: consider the location of the airport.)
 
+air_time it's in minutes
+
+```{r}
+flights_dt %>% 
+    mutate(
+      duration_flights = as.numeric(arr_time - dep_time),
+      difference = duration_flights - air_time
+    ) %>% 
+    select(origin, dest, duration_flights, air_time, difference) %>% 
+    arrange(difference, duration_flights)
+```
+
+
 4. How does the average delay time change over the course of a day? Should you use dep_time or sched_dep_time? Why?
+
+```{r}
+flights_dt %>% 
+  mutate(sched_dep_hour = hour(sched_dep_time)) %>% 
+  group_by(sched_dep_hour) %>% 
+  summarise(dep_delay = mean(dep_delay)) %>% 
+  ggplot(aes(y = dep_delay, x = sched_dep_hour)) +
+  geom_point() +
+  geom_smooth()
+  
+```
 
 5. On what day of the week should you leave if you want to minimise the chance of a delay?
 
+```{r}
+flights_dt %>% 
+  mutate(departure_day = wday(sched_dep_time, label = TRUE)) %>% 
+  group_by(departure_day) %>% 
+  summarise(
+    dep_delay = mean(dep_delay),
+    arr_delay = mean(arr_delay, na.rm = TRUE)
+    )
+```
+
+
+```{r}
+flights_dt %>% 
+  mutate(departure_day = wday(sched_dep_time, label = TRUE)) %>% 
+  group_by(departure_day) %>% 
+  summarise(avg_delay = mean(dep_delay, na.rm = TRUE)) %>% 
+  ggplot(aes(departure_day, avg_delay)) +
+  geom_bar(stat = "identity")
+```
+
+```{r}
+flights_dt %>% 
+  mutate(departure_day = wday(sched_dep_time, label = TRUE)) %>% 
+  group_by(departure_day) %>% 
+  summarise(avg_delay = mean(arr_delay, na.rm = TRUE)) %>% 
+  ggplot(aes(departure_day, avg_delay)) +
+  geom_bar(stat = "identity")
+```
+
+
 5. What makes the distribution of diamonds$carat and flights$sched_dep_time similar?
 
+```{r}
+ggplot(diamonds, aes(carat)) +
+  geom_density()
+  
+```
+
+```{r}
+ggplot(diamonds, aes(carat %% 1 * 100)) +
+  geom_histogram(binwidth = 1)
+```
+
+
+
+```{r}
+ggplot(flights_dt, aes(x = minute(sched_dep_time))) +
+  geom_histogram(binwidth = 1)
+```
+
+
+There are some picks in round numbers. 
+
 6. Confirm my hypothesis that the early departures of flights in minutes 20-30 and 50-60 are caused by scheduled flights that leave early. Hint: create a binary variable that tells you whether or not a flight was delayed.
+
+```{r}
+flights_dt %>% 
+  mutate(
+    minute = minute(dep_time),
+    early = dep_delay < 0) %>% 
+  group_by(minute) %>% 
+  summarise(
+    early = mean(early, na.rm = TRUE),
+    n = n()) %>% 
+  ggplot(aes(minute, early)) +
+  geom_line()
+```
+
+```{r}
+flights_dt %>% 
+  mutate(minute = minute(dep_time),
+    early = dep_delay < 0) %>% 
+  group_by(minute) %>% 
+  summarise(early = mean(early, na.rm = TRUE),n = n())
+```
+
+### 16.4.5 Exercises Time Spans
+
+1. Why is there months() but no dmonths()?
+
+/*/ Book's answer: 
+
+There is no unambiguous value of months in terms of seconds since months have differing numbers of days.
+
+31 days: January, March, May, July, August, October, December
+30 days: April, June, September, November
+28 or 29 days: February
+The month is not a duration of time defined independently of when it occurs, but a special interval between two dates.
+
+You can only do month(integer). 
+
+2. Explain days(overnight * 1) to someone who has just started learning R. How does it work?
+
+We built the variable overnight, which will take the value of TRUE if arr_time < dep_time, and FALSE if it doesn't meet this condition. In R, TRUE is equal to 1, and FALSE is equal to 0. So, what that function does is that when the flight is an overnight flight, overnight will value 1, then days(1*1) (which will end up adding a new day). On the other hand, if overnight = FALSE, overnight will be 0, then days(0 x 1) equeals 0, so 0 days will be added.
+
+3. Create a vector of dates giving the first day of every month in 2015. Create a vector of dates giving the first day of every month in the current year.
+
+```{r}
+ymd("2015-01-01") + months(0:11)
+```
+
+```{r}
+floor_date(today(), unit = "year") + months(0:11)
+```
+
+4. Write a function that given your birthday (as a date), returns how old you are in years.
+
+```{r}
+age <- function(bday) {
+  (bday%--% today()) %/% years(1) #how many intervals of 1 year we have here
+}
+
+age("1993-03-05")
+```
+
+5. Why can’t (today() %--% (today() + years(1))) / months(1) work?
+
+```{r}
+(today() %--% (today() + years(1))) / months(1)
+```
+
+
+
+
+
+
+
+
+
+
+
+
