@@ -171,3 +171,64 @@ flights_dt %>%
   geom_freqpoly(binwidth = 300) # 5 minutes
 ```
 
+
+# Time spans
+
+
+## Durantion
+
+```{r}
+noeli_age <- today() - ymd(19930305)
+noeli_age
+```
+
+lubridate fx duration()
+```{r}
+as.duration(noeli_age)
+```
+
+
+## Periods
+
+- There are some flights that in the table appear as they had arrived before than what they have left. This is because they are overnight flights. They arrived in the next day, but as we use the same information to construct this column, we have this mistake.
+
+```{r}
+flights_dt %>% 
+  filter(arr_time < dep_time)
+```
+
+To fix it, we will add a day:
+
+```{r}
+flights_dt <- flights_dt %>% 
+  mutate(
+    overnight = arr_time < dep_time,
+    arr_time = arr_time + days(overnight * 1),
+    sched_arr_time = sched_arr_time + days(overnight * 1)
+)
+```
+
+```{r}
+flights_dt %>% 
+  filter(overnight, arr_time < dep_time)
+```
+
+## Intervals
+
+```{r}
+dyears(1) / ddays(365)
+```
+
+```{r}
+years(1) / days(1)
+```
+
+```{r}
+next_year <- today() + years(1)
+(today() %--% next_year) / ddays(1)
+```
+
+```{r}
+(today() %--% next_year) %/% days(1)
+```
+

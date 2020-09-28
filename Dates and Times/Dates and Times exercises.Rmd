@@ -267,6 +267,9 @@ age("1993-03-05")
 (today() %--% (today() + years(1))) / months(1)
 ```
 
+```{r}
+Sys.timezone():p
+```
 
 
 
