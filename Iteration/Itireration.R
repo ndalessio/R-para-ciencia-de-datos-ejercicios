@@ -154,5 +154,75 @@ for (var in names(trans)) {
 
 # For loops vs. functionals
 
+# The map function
+#Exercise 21.5.1
+# 1. Write code that uses one of the map functions to:
+
+#Compute the mean of every column in mtcars.
+map_dbl(mtcars, mean)
+
+#Determine the type of each column in nycflights13::flights.
+map_chr(nycflights13::flights, typeof)
+
+#Compute the number of unique values in each column of iris.
+map_int(iris, n_distinct) 
+#also map_int(function(x), length(unique(x))) or map_int(iris, ~length(unique(.x)))
+
+#Generate 10 random normals for each of  
+map(c(-10, 0, 10, 100), ~rnorm(n = 10, mean = .))
+
+#2.How can you create a single vector that for each column in a data frame indicates whether or not it’s a factor?
+
+map_lgl(diamonds, is.factor)
+
+#3. What happens when you use the map functions on vectors that aren’t lists? What does map(1:5, runif) do? Why?
+
+map(1:5, runif)
+
+# the output is always a list. The map function loops between 1:5. Previous expression is equivalent to this:
+list(
+  runif(1),
+  runif(2),
+  runif(3),
+  runif(4),
+  runif(5)
+)
+
+#4. What does map(-2:2, rnorm, n = 5) do? Why? What does map_dbl(-2:2, rnorm, n = 5) do? Why?
+
+map(-2:2, rnorm, n = 5)
+# This expression takes samples of size five from five normal distributions, with means of (-2, -1, 0, 1, and 2), but the same standard deviation (1). It returns a list with each element a numeric vectors of length 5.
+
+map_dbl(-2:2, rnorm, n = 5)
+# Raises an error. This is because the map_dbl() function requires the function it applies to each element to return a numeric vector of length one. If the function returns either a non-numeric vector or a numeric vector with a length greater than one, map_dbl() will raise an error. The reason for this strictness is that map_dbl() guarantees that it will return a numeric vector of the same length as its input vector.
+
+#To return a numeric vector, use flatten_dbl() to coerce the list returned by map() to a numeric vector.
+
+map(-2:2, rnorm, n = 5) %>% 
+  flatten_dbl()
+
+#5. Rewrite map(x, function(df) lm(mpg ~ wt, data = df)) to eliminate the anonymous function.
+
+x <- split(mtcars, mtcars$cyl)
+map(x, function(df) lm(mpg ~ wt, data = df))
+
+# we can eliminate the anonymus func
+
+map(x, ~ lm(mpg ~ wt, data = .))
+
+#another way to eliminate an anonymous func is to create a named one
+run_reg <- function(df) {
+  lm(mpg ~ wt, data = df)
+}
+map(x, run_reg)
+
+
+
+
+
+
+
+
+
 
 
