@@ -1,0 +1,246 @@
+---
+title: "Models"
+author: "Noelí D'Alessio"
+date: "10/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(modelr)
+options(na.action = na.warn)
+```
+
+sim1 is part of modelr, has two variables x and y
+
+```{r}
+ggplot(sim1, aes(x,y)) +
+  geom_point()
+```
+
+```{r}
+models <- tibble(
+  a1 = runif(250, -20, 40),
+  a2 = runif(250, -5, 5)
+)
+
+ggplot(sim1, aes(x, y)) +
+  geom_abline(aes(intercept = a1, slope = a2), data = models, alpha =1/4) +
+  geom_point()
+```
+
+There are 250 models (predictions) here. We have to choose the one that fits the better. 
+This distance is just the difference between the y value given by the model (the prediction), and the actual y value in the data (the response).
+
+To compute this distance, we first turn our model family into an R function. This takes the model parameters and the data as inputs, and gives values predicted by the model as output:
+
+```{r}
+# y = b + m * x
+
+# y = intercept + data$x * slope
+
+model1 <- function(a, data){
+  a[1] + data$x * a[2]      
+}
+
+model1(c(7, 1.5), sim1) 
+# 7 + data$x * 1.5
+# 7 + data$x * 1.5 etc.
+```
+
+Next, we need some way to compute an overall distance between the predicted and actual values.
+One common way to do this in statistics to use the “root-mean-squared deviation”. We compute the difference between actual and predicted, square them, average them, and the take the square root. 
+
+```{r}
+measure_distance <- function(mod, data){
+  diff <- data$y - model1(mod, data) #data$y - model
+  sqrt(mean(diff ^ 2))
+}
+
+measure_distance(c(7, 1.5), sim1)
+```
+
+Now we can use purrr to compute the distance for all the models defined above. We need a helper function because our distance function expects the model as a numeric vector of length 2.
+
+```{r}
+sim1_dist <- function(a1, a2){
+  #measure distance first estimates y with intercept and slop
+  # and then measure the distance between the model and the y
+  measure_distance(c(a1, a2), sim1) 
+}
+
+models <- models %>% 
+  mutate(dist = purrr::map2_dbl(a1, a2, sim1_dist)) 
+
+models
+```
+
+Next, let’s overlay the 10 best models on to the data. I’ve coloured the models by -dist: this is an easy way to make sure that the best models (i.e. the ones with the smallest distance) get the brighest colours.
+
+```{r}
+ggplot(sim1, aes(x, y)) + 
+  geom_point(size = 2, colour = "grey30") +
+  geom_abline(
+    aes(intercept = a1, slope = a2, color = -dist),
+    data = filter(models, rank(dist) <= 10)
+  )
+```
+
+```{r}
+ggplot(models, aes(a1, a2)) +
+  geom_point(data = filter(models, rank(dist) <= 10), size = 4, colour = "red") +
+  geom_point(aes(colour = -dist))
+```
+
+
+Instead,  we could be more systematic and generate an evenly spaced grid of points (this is called a grid search)
+
+```{r}
+grid <- expand.grid(
+  a1 = seq(-5, 20, length = 25),
+  a2 = seq(1, 3, length = 25)
+) %>% 
+  mutate(dist = purrr::map2_dbl(a1, a2, sim1_dist))
+
+grid %>% 
+  ggplot(aes(a1, a2)) +
+  geom_point(data = filter(grid, rank(dist) <= 10), size = 4, colour = "red") +
+  geom_point(aes(colour = -dist))
+```
+
+```{r}
+ggplot(sim1, aes(x, y)) + 
+  geom_point(size = 2, colour = "grey30") + 
+  geom_abline(
+    aes(intercept = a1, slope = a2, colour = -dist), 
+    data = filter(grid, rank(dist) <= 10)
+  )
+```
+
+You could imagine iteratively making the grid finer and finer until you narrowed in on the best model. But there’s a better way to tackle that problem: a numerical minimisation tool called Newton-Raphson search. The intuition of Newton-Raphson is pretty simple: you pick a starting point and look around for the steepest slope. You then ski down that slope a little way, and then repeat again and again, until you can’t go any lower. In R, we can do that with optim():
+
+```{r}
+best <- optim(c(0, 0), measure_distance, data = sim1)
+best$par
+```
+
+```{r}
+ggplot(sim1, aes(x, y)) +
+  geom_point(size = 2, colour = "grey30") +
+  geom_abline(intercept = best$par[1], slope = best$par[2])
+```
+
+R has a tool specifically designed for fitting linear models called lm():
+
+```{r}
+sim1_mod <- lm(y ~ x, data = sim1)
+coef(sim1_mod)
+```
+
+# 23.2.1 Exercises
+
+1. One downside of the linear model is that it is sensitive to unusual values because the distance incorporates a squared term. Fit a linear model to the simulated data below, and visualise the results. Rerun a few times to generate different simulated datasets. What do you notice about the model?
+
+```{r}
+sim1a <- tibble(
+  x = rep(1:10, each = 3), 
+  y = x * 1.5 + 6 + rt(length(x), df = 2) #rt pseudo number for t distributions
+)
+sim1a
+```
+
+```{r}
+ggplot(sim1a, aes(x, y)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+If we want to run many simulations, we can build a function, and add and id:
+
+```{r}
+simt <- function(i){
+  tibble(
+    x = rep(1:10, each = 3),
+    y = x * 1.5 + 6 + rt(length(x), df = 2), #df is degree of freedom
+    .id = i
+  )
+}
+
+sims <- map_df(1:12, simt)
+
+ggplot(sims, aes(x = x, y = y)) +
+  geom_point() +
+  geom_smooth(method = "lm", colour = "red") +
+  facet_wrap(~.id, ncol = 4)
+```
+
+Same thing but with normal distributions:
+
+```{r}
+sim_norm <- function(i) {
+  tibble(
+    x = rep(1:10, each = 3),
+    y = x * 1.5 + 6 + rnorm(length(x)),
+    .id = i
+  )
+}
+
+simdf_norm <- map_df(1:12, sim_norm)
+
+ggplot(simdf_norm, aes(x = x, y = y)) +
+  geom_point() +
+  geom_smooth(method = "lm", colour = "red") +
+  facet_wrap(~.id, ncol = 4)
+```
+
+In the Student's distribution there are more outliers thanin the normal distribution.
+
+The Student’s t-distribution assigns a larger probability to values further from the center of the distribution than normal distribution.
+
+```{r}
+tibble(
+  x = seq(-5, 5, length.out = 100),
+  normal = dnorm(x),
+  student_t = dt(x, df = 2)
+) %>%
+  pivot_longer(-x, names_to="distribution", values_to="density") %>%
+  ggplot(aes(x = x, y = density, colour = distribution)) +
+  geom_line()
+```
+
+The probability of being bigger than 2 is:
+
+```{r}
+pnorm(2, lower.tail = FALSE)
+```
+
+```{r}
+pt(2, df = 2, lower.tail = FALSE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
