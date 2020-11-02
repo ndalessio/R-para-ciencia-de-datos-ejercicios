@@ -5,6 +5,8 @@ date: "10/10/2020"
 output: html_document
 ---
 
+# A Simple Model
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -222,25 +224,150 @@ pnorm(2, lower.tail = FALSE)
 pt(2, df = 2, lower.tail = FALSE)
 ```
 
+2. One way to make linear models more robust is to use a different distance measure. For example, instead of root-mean-squared distance, you could use mean-absolute distance:
+
+```{r}
+measure_distance <- function(mod, data) {
+  diff <- data$y - make_prediction(mod, data)
+  mean(abs(diff))
+}
+
+# we need to make a make_prediction function that takes a numeric vector of length 2 (the intercept and the slope) and returns the prediction
+
+make_prediction <- function(mod, data) {
+  mod[1] + mod[2] * data$x
+}
+
+# sim1 data
+
+best <- optim(c(0, 0), measure_distance, data = sim1a)
+best$par
+```
+
+```{r}
+# Using the sim1a data, while the parameters the minimize the least squares objective function are:
+
+measure_distance_ls <-  function(mod, data){
+  diff <- data$y - (mod[1] + mod[2] * data$x)
+  sqrt(mean(diff^2))
+}
+
+best <- optim(c(0, 0), measure_distance_ls, data = sim1a)
+best$par
+```
+
+In practice, I suggest not using optim() to fit this model, and instead using an existing implementation. The rlm() and lqs() functions in the MASS fit robust and resistant linear models.
+
+3. One challenge with performing numerical optimization is that it’s only guaranteed to find a local optimum. What’s the problem with optimizing a three parameter model like this?
 
 
 
+# 23.3 Visualising Models
+
+# Predictions
+
+modelr::data_grid(df)
+
+```{r}
+grid <- sim1 %>% 
+  data_grid(x)
+
+grid
+```
+
+modelr::add_predictions(df, model)
+
+```{r}
+grid <- grid %>% 
+  add_predictions(sim1_mod)
+
+grid
+```
 
 
+```{r}
+ggplot(sim1, aes(x)) +
+  geom_point(aes(y = y)) +
+  geom_line(aes(y = pred), data = grid, color = "red", size = 1)
+```
+
+# Residuals
+
+```{r}
+sim1 <- sim1 %>%  #we have to use the original dataset
+  add_residuals(sim1_mod)
+
+sim1
+```
 
 
+There are a few different ways to understand what the residuals tell us about the model. One way is to simply draw a frequency polygon to help us understand the spread of the residuals:
+
+```{r}
+ggplot(sim1, aes(resid)) +
+  geom_freqpoly(binwidth = 0.5)
+```
+
+This helps you calibrate the quality of the model: how far away are the predictions from the observed values? Note that the average of the residual will always be 0.
+
+You’ll often want to recreate plots using the residuals instead of the original predictor. 
+
+```{r}
+ggplot(sim1, aes(x, resid)) +
+  geom_ref_line(h =0) +
+  geom_point()
+```
+
+This looks like random noise, suggesting that our model has done a good job of capturing the patterns in the dataset.
+
+### 23.3.3 Exercises
+
+1. Instead of using lm() to fit a straight line, you can use loess() to fit a smooth curve. Repeat the process of model fitting, grid generation, predictions, and visualisation on sim1 using loess() instead of lm(). How does the result compare to geom_smooth()?
+
+```{r}
+sim1_loess <- loess(y ~ x, data = sim1)
+sim1_lm <- lm(y ~ x, data = sim1)
+
+grid_loess <- sim1 %>% 
+  add_predictions(sim1_loess)
+
+sim1 <- sim1 %>% 
+  add_residuals(sim1_lm) %>% 
+  add_predictions(sim1_lm) %>% 
+  add_residuals(sim1_loess) %>% 
+  add_predictions(sim1_loess)
+```
+
+This plots the loess predictions. The loess produces a nonlinear, smooth line through the data.
+
+```{r}
+plot_sim1_loess <-
+  ggplot(sim1, aes(x = x, y = y)) +
+  geom_point() +
+  geom_line(aes(x = x, y = pred), data = grid_loess, colour = "red")
+plot_sim1_loess
+```
+
+```{r}
+plot_sim1_loess +
+  geom_smooth(method = "loess", colour = "blue", se = FALSE, alpha = 0.20)
+
+#geom_smooth uses loess()
+```
+
+We can plot the residuals (red), and compare them to the residuals from lm() (black). In general, the loess model has smaller residuals within the sample (out of sample is a different issue, and we haven’t considered the uncertainty of these estimates).
+
+```{r}
+ggplot(sim1, aes(x = x)) +
+  geom_ref_line(h = 0) +
+  geom_point(aes(y = resid)) +
+  geom_point(aes(y = resid_loess), colour = "red")
+```
 
 
+2. add_predictions() is paired with gather_predictions() and spread_predictions(). How do these three functions differ?
 
+3. What does geom_ref_line() do? What package does it come from? Why is displaying a reference line in plots showing residuals useful and important?
 
-
-
-
-
-
-
-
-
-
-
+4. Why might you want to look at a frequency polygon of absolute residuals? What are the pros and cons compared to looking at the raw residuals?
 
